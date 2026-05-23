@@ -786,6 +786,9 @@ export class AshHollowScene extends Phaser.Scene {
     }
 
     this.noiseMarkers = this.noiseMarkers.filter((marker) => {
+      if (!marker.active || !marker.scene) {
+        return false;
+      }
       const age = (marker.getData('age') as number) + delta;
       const targetRadius = marker.getData('targetRadius') as number;
       const progress = Phaser.Math.Clamp(age / 520, 0, 1);
@@ -821,7 +824,7 @@ export class AshHollowScene extends Phaser.Scene {
     }
 
     const statusText = [
-      this.finalSequence ? 'RUN TO THE SERVICE TUNNEL' : 'PUBLIC DEMO v0.3',
+      this.finalSequence ? 'RUN TO THE SERVICE TUNNEL' : `PUBLIC DEMO ${GAME_CONFIG.buildLabel}`,
       GAME_CONFIG.debugShortcutsEnabled ? 'DEV SHORTCUTS: 1 2 3 K' : '',
       'M mute  ,/. volume'
     ]
