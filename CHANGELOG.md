@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.3.0 - Asset Polish
+
+- Added a curated CC0 asset pipeline under `public/assets/vendor/`.
+- Added asset manifest metadata and project credits for third-party assets and AI transparency.
+- Integrated top-down floor/wall tiles, grunge horror overlays, Kenney input prompt glyphs, and selected enemy silhouette frames.
+- Extended audio from procedural-only to a hybrid system with asset ambience/stingers plus procedural threat tones.
+- Added an in-game credits screen available from the menu or pause screen with `C`.
+- Preserved the existing room/collision data and chapter progression.
+
 ## v0.2.0 - Public Demo Hardening
 
 - Extracted content types, level data, event names, runtime config, and procedural audio into focused modules.

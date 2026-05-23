@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_CONFIG } from './config';
+import { FLAT_ASSET_CREDITS, VENDOR_ASSET_KEYS, VENDOR_ASSET_PATHS } from './data/assetManifest';
 import { DOORS, NOTES, PATROL_POINTS, PICKUPS, ROOMS, WALLS, WORLD_SIZE } from './data/levelData';
 import { EVENTS } from './events';
 import { ProceduralAudioController } from './systems/AudioController';
@@ -23,12 +24,16 @@ export class AshHollowScene extends Phaser.Scene {
   private uiText!: Phaser.GameObjects.Text;
   private centerText!: Phaser.GameObjects.Text;
   private promptText!: Phaser.GameObjects.Text;
+  private promptIcon!: Phaser.GameObjects.Sprite;
   private messageText!: Phaser.GameObjects.Text;
   private staticText!: Phaser.GameObjects.Text;
   private statusText!: Phaser.GameObjects.Text;
+  private creditText!: Phaser.GameObjects.Text;
+  private menuPromptIcons: Phaser.GameObjects.Sprite[] = [];
   private muteKey!: Phaser.Input.Keyboard.Key;
   private volumeDownKey!: Phaser.Input.Keyboard.Key;
   private volumeUpKey!: Phaser.Input.Keyboard.Key;
+  private creditsKey!: Phaser.Input.Keyboard.Key;
   private interactionTarget?: Interactable;
   private interactables: Interactable[] = [];
   private inventory = new Set<ItemKind>();
@@ -40,6 +45,7 @@ export class AshHollowScene extends Phaser.Scene {
   private objective = 'Find a light in the road fog.';
   private shifted = false;
   private finalSequence = false;
+  private previousState: GameState = 'menu';
   private enemyState: EnemyState = 'dormant';
   private enemyTarget = new Phaser.Math.Vector2();
   private patrolIndex = 0;
@@ -51,6 +57,7 @@ export class AshHollowScene extends Phaser.Scene {
   private messageUntil = 0;
   private lastStepAt = 0;
   private lastThreatCueAt = 0;
+  private enemyFrameTick = 0;
   private noiseMarkers: Phaser.GameObjects.Arc[] = [];
   private audio = new ProceduralAudioController(GAME_CONFIG.audioEnabled);
 
@@ -59,6 +66,23 @@ export class AshHollowScene extends Phaser.Scene {
   }
 
   preload() {
+    this.load.image(VENDOR_ASSET_KEYS.floorMetal, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.floorMetal]);
+    this.load.image(VENDOR_ASSET_KEYS.floorStone, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.floorStone]);
+    this.load.image(VENDOR_ASSET_KEYS.floorWood, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.floorWood]);
+    this.load.image(VENDOR_ASSET_KEYS.wallConcrete, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.wallConcrete]);
+    this.load.image(VENDOR_ASSET_KEYS.wallMetal, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.wallMetal]);
+    this.load.image(VENDOR_ASSET_KEYS.grungeTiles, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.grungeTiles]);
+    this.load.spritesheet(VENDOR_ASSET_KEYS.inputPrompts, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.inputPrompts], {
+      frameWidth: 16,
+      frameHeight: 16,
+      spacing: 1
+    });
+    this.load.image(VENDOR_ASSET_KEYS.enemyIdle, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.enemyIdle]);
+    this.load.image(VENDOR_ASSET_KEYS.enemyMove0, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.enemyMove0]);
+    this.load.image(VENDOR_ASSET_KEYS.enemyMove1, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.enemyMove1]);
+    this.load.image(VENDOR_ASSET_KEYS.enemyMove2, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.enemyMove2]);
+    this.load.image(VENDOR_ASSET_KEYS.enemyMove3, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.enemyMove3]);
+    this.audio.preload(this);
     this.createGeneratedTextures();
   }
 
@@ -76,6 +100,7 @@ export class AshHollowScene extends Phaser.Scene {
     this.muteKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
     this.volumeDownKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.COMMA);
     this.volumeUpKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.PERIOD);
+    this.creditsKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.C);
     this.input.on('pointerdown', () => {
       if (this.state === 'menu') {
         this.startGame();
@@ -93,13 +118,21 @@ export class AshHollowScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.keys.ENTER) && this.state === 'menu') {
       this.startGame();
     }
+    if (Phaser.Input.Keyboard.JustDown(this.creditsKey) && (this.state === 'menu' || this.state === 'paused')) {
+      this.showCredits();
+      return;
+    }
+    if ((Phaser.Input.Keyboard.JustDown(this.keys.ESC) || Phaser.Input.Keyboard.JustDown(this.creditsKey)) && this.state === 'credits') {
+      this.hideCredits();
+      return;
+    }
     if (Phaser.Input.Keyboard.JustDown(this.keys.R) && (this.state === 'dead' || this.state === 'chapter_complete')) {
       this.restartScene();
     }
     if (Phaser.Input.Keyboard.JustDown(this.keys.ESC) && this.state === 'playing') {
       this.state = 'paused';
       this.centerText.setText(
-        `PAUSED\n\nEsc resumes\nM toggles audio\n, and . adjust volume\n\nAudio: ${this.audio.isMuted() ? 'muted' : `${Math.round(this.audio.getVolume() * 100)}%`}`
+        `PAUSED\n\nEsc resumes\nC opens credits\nM toggles audio\n, and . adjust volume\n\nAudio: ${this.audio.isMuted() ? 'muted' : `${Math.round(this.audio.getVolume() * 100)}%`}`
       );
       this.centerText.setVisible(true);
       return;
@@ -175,13 +208,15 @@ export class AshHollowScene extends Phaser.Scene {
       const floor = this.add.rectangle(room.x, room.y, room.width, room.height, room.color, 1);
       floor.setData('roomId', room.id);
       floor.setStrokeStyle(3, 0x3e4037, 0.75);
-      this.addRoomDressing(room);
       const label = this.add.text(room.x - room.width / 2 + 18, room.y - room.height / 2 + 16, room.name.toUpperCase(), {
         fontSize: '13px',
         color: '#8e927f',
         fontFamily: 'monospace'
       });
-      this.mapLayer.add([shadow, floor, label]);
+      this.mapLayer.add([shadow, floor]);
+      this.addVendorRoomDressing(room);
+      this.addRoomDressing(room);
+      this.mapLayer.add(label);
     }
 
     const road = this.add.graphics();
@@ -263,6 +298,36 @@ export class AshHollowScene extends Phaser.Scene {
     this.mapLayer.add(graphics);
   }
 
+  private addVendorRoomDressing(room: (typeof ROOMS)[number]) {
+    const floorKeyByRoom: Record<string, string> = {
+      road: VENDOR_ASSET_KEYS.floorStone,
+      diner: VENDOR_ASSET_KEYS.floorWood,
+      motel: VENDOR_ASSET_KEYS.floorWood,
+      clinic: VENDOR_ASSET_KEYS.floorMetal,
+      storage: VENDOR_ASSET_KEYS.floorMetal,
+      fuse: VENDOR_ASSET_KEYS.floorMetal,
+      basement: VENDOR_ASSET_KEYS.floorStone,
+      tunnel: VENDOR_ASSET_KEYS.floorStone
+    };
+    const floor = this.add.tileSprite(room.x, room.y, room.width - 28, room.height - 28, floorKeyByRoom[room.id] ?? VENDOR_ASSET_KEYS.floorStone);
+    floor.setAlpha(room.id === 'road' ? 0.18 : 0.26);
+    floor.setTint(room.shiftedColor ? 0x9f9182 : 0x8a8d82);
+    this.mapLayer.add(floor);
+
+    const wallKey = room.id === 'clinic' || room.id === 'storage' || room.id === 'fuse' ? VENDOR_ASSET_KEYS.wallMetal : VENDOR_ASSET_KEYS.wallConcrete;
+    const topWall = this.add.tileSprite(room.x, room.y - room.height / 2 + 10, room.width - 18, 20, wallKey);
+    const bottomWall = this.add.tileSprite(room.x, room.y + room.height / 2 - 10, room.width - 18, 20, wallKey);
+    topWall.setAlpha(0.24).setTint(0x7b7568);
+    bottomWall.setAlpha(0.18).setTint(0x5f5a51);
+    this.mapLayer.add([topWall, bottomWall]);
+
+    const grime = this.add.sprite(room.x + room.width * 0.18, room.y + room.height * 0.12, VENDOR_ASSET_KEYS.grungeTiles);
+    grime.setDisplaySize(Math.min(room.width * 0.62, 360), Math.min(room.height * 0.58, 260));
+    grime.setAlpha(room.id === 'basement' || room.id === 'storage' ? 0.19 : 0.1);
+    grime.setTint(room.shiftedColor ? 0x8b3830 : 0x71695d);
+    this.mapLayer.add(grime);
+  }
+
   private createActors() {
     this.player = this.physics.add.sprite(230, 820, 'player');
     this.player.setCollideWorldBounds(true);
@@ -272,9 +337,11 @@ export class AshHollowScene extends Phaser.Scene {
     this.physics.add.collider(this.player, this.doorWalls);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
 
-    this.enemy = this.physics.add.sprite(1350, 1190, 'attendant');
+    this.enemy = this.physics.add.sprite(1350, 1190, VENDOR_ASSET_KEYS.enemyIdle);
     this.enemy.setDepth(19);
     this.enemy.setVisible(false);
+    this.enemy.setDisplaySize(46, 54);
+    this.enemy.setTint(0x6f514d);
     this.enemy.body!.setSize(20, 28).setOffset(8, 10);
     this.physics.add.collider(this.enemy, this.walls);
     this.physics.add.collider(this.enemy, this.doorWalls);
@@ -317,6 +384,9 @@ export class AshHollowScene extends Phaser.Scene {
     });
     this.promptText.setOrigin(0.5).setScrollFactor(0).setDepth(90).setVisible(false);
 
+    this.promptIcon = this.add.sprite(544, 650, VENDOR_ASSET_KEYS.inputPrompts, 600);
+    this.promptIcon.setScale(2).setScrollFactor(0).setDepth(91).setVisible(false);
+
     this.messageText = this.add.text(640, 92, '', {
       fontSize: '18px',
       color: '#efe6ca',
@@ -338,6 +408,18 @@ export class AshHollowScene extends Phaser.Scene {
       wordWrap: { width: 820 }
     });
     this.centerText.setOrigin(0.5).setScrollFactor(0).setDepth(100);
+
+    this.creditText = this.add.text(640, 360, '', {
+      fontSize: '15px',
+      color: '#ddd5c3',
+      fontFamily: 'monospace',
+      align: 'left',
+      backgroundColor: '#070806f2',
+      padding: { x: 24, y: 20 },
+      wordWrap: { width: 920 },
+      lineSpacing: 5
+    });
+    this.creditText.setOrigin(0.5).setScrollFactor(0).setDepth(110).setVisible(false);
   }
 
   private registerEvents() {
@@ -364,23 +446,78 @@ export class AshHollowScene extends Phaser.Scene {
   private showMenu() {
     this.state = 'menu';
     this.centerText.setText(
-      'ASH HOLLOW v0.2\n\nA fully AI-created 2.5D psychological horror demo\n\nWASD / Arrows move\nShift sprints and makes noise\nMouse aims flashlight\nE interacts\nF stuns nearby threat if flashlight is charged\nM toggles audio\n, and . adjust volume\n\nPress Enter or click'
+      'ASH HOLLOW v0.3\n\nA fully AI-created 2.5D psychological horror demo\n\nWASD / Arrows move\nShift sprints and makes noise\nMouse aims flashlight\nE interacts\nF stuns nearby threat if flashlight is charged\nM toggles audio\n, and . adjust volume\nC opens credits\n\nPress Enter or click'
     );
     this.centerText.setVisible(true);
+    this.addMenuPromptIcons();
     this.uiText.setText('');
   }
 
   private startGame() {
     this.state = 'playing';
     this.centerText.setVisible(false);
-    this.audio.startAmbience();
+    this.creditText.setVisible(false);
+    this.clearMenuPromptIcons();
+    this.audio.startAmbience('dungeon');
     this.events.emit(EVENTS.OBJECTIVE_STARTED, 'chapter');
     this.broadcast('Ash falls sideways. Find the cracked flashlight, then search the diner and motel for fuses.');
   }
 
   private restartScene() {
     this.audio.setThreatLevel(0);
+    this.audio.stopAmbience();
     this.scene.restart();
+  }
+
+  private showCredits() {
+    this.previousState = this.state;
+    this.state = 'credits';
+    this.centerText.setVisible(false);
+    const assetLines = FLAT_ASSET_CREDITS.map(
+      (credit) => `- ${credit.title} by ${credit.creator} (${credit.license})\n  ${credit.usage}${credit.modified ? ' Modified/tinted/scaled in-game.' : ''}`
+    );
+    this.creditText.setText(
+      [
+        'CREDITS AND TRANSPARENCY',
+        '',
+        'AI / HUMAN WORK',
+        '- OpenAI Codex / ChatGPT: concept, planning, implementation, docs, checks, repository and deployment support.',
+        '- Claude Code with Claude Opus 4.7: planned future review/debugging collaborator.',
+        '- Human direction: tone, approval, taste, priorities, and iteration requests.',
+        '',
+        'THIRD-PARTY ASSETS',
+        ...assetLines,
+        '',
+        'All third-party assets currently integrated are CC0. Attribution is included voluntarily for transparency.',
+        '',
+        'Press Esc or C to return.'
+      ].join('\n')
+    );
+    this.creditText.setVisible(true);
+  }
+
+  private hideCredits() {
+    this.creditText.setVisible(false);
+    this.state = this.previousState === 'credits' ? 'menu' : this.previousState;
+    if (this.state === 'menu' || this.state === 'paused') {
+      this.centerText.setVisible(true);
+    }
+  }
+
+  private addMenuPromptIcons() {
+    this.clearMenuPromptIcons();
+    const y = 526;
+    for (let i = 0; i < 5; i += 1) {
+      const icon = this.add.sprite(540 + i * 36, y, VENDOR_ASSET_KEYS.inputPrompts, 590 + i);
+      icon.setScale(2).setScrollFactor(0).setDepth(101).setAlpha(0.55);
+      this.tweens.add({ targets: icon, alpha: 0.2, duration: 1600, yoyo: true, repeat: -1, delay: i * 110 });
+      this.menuPromptIcons.push(icon);
+    }
+  }
+
+  private clearMenuPromptIcons() {
+    this.menuPromptIcons.forEach((icon) => icon.destroy());
+    this.menuPromptIcons = [];
   }
 
   private updateAudioControls() {
@@ -389,7 +526,7 @@ export class AshHollowScene extends Phaser.Scene {
       this.broadcast(`Audio ${this.audio.isMuted() ? 'muted' : 'enabled'}.`, 1500);
       if (this.state === 'paused') {
         this.centerText.setText(
-          `PAUSED\n\nEsc resumes\nM toggles audio\n, and . adjust volume\n\nAudio: ${this.audio.isMuted() ? 'muted' : `${Math.round(this.audio.getVolume() * 100)}%`}`
+          `PAUSED\n\nEsc resumes\nC opens credits\nM toggles audio\n, and . adjust volume\n\nAudio: ${this.audio.isMuted() ? 'muted' : `${Math.round(this.audio.getVolume() * 100)}%`}`
         );
       }
     }
@@ -481,8 +618,9 @@ export class AshHollowScene extends Phaser.Scene {
     }
     this.interactionTarget = closest;
     this.promptText.setVisible(Boolean(closest));
+    this.promptIcon.setVisible(Boolean(closest));
     if (closest) {
-      this.promptText.setText(`E  ${closest.label}`);
+      this.promptText.setText(`     ${closest.label}`);
     }
   }
 
@@ -554,6 +692,27 @@ export class AshHollowScene extends Phaser.Scene {
       stunned: 0
     };
     this.physics.moveToObject(this.enemy, this.enemyTarget, speedByState[this.enemyState], delta);
+    this.updateEnemySprite(delta);
+  }
+
+  private updateEnemySprite(delta: number) {
+    this.enemyFrameTick += delta;
+    if (this.enemyState === 'stunned') {
+      this.enemy.setTexture(VENDOR_ASSET_KEYS.enemyIdle).setTint(0xb99f82);
+      this.enemy.setDisplaySize(48, 50);
+      return;
+    }
+    const movingFrames = [
+      VENDOR_ASSET_KEYS.enemyMove0,
+      VENDOR_ASSET_KEYS.enemyMove1,
+      VENDOR_ASSET_KEYS.enemyMove2,
+      VENDOR_ASSET_KEYS.enemyMove3
+    ];
+    const frame = this.enemyState === 'dormant' || this.enemyState === 'patrol'
+      ? VENDOR_ASSET_KEYS.enemyIdle
+      : movingFrames[Math.floor(this.enemyFrameTick / 180) % movingFrames.length];
+    this.enemy.setTexture(frame).setTint(this.enemyState === 'chase' ? 0x9d5c52 : 0x6f514d);
+    this.enemy.setDisplaySize(this.enemyState === 'chase' ? 52 : 46, this.enemyState === 'chase' ? 60 : 54);
   }
 
   private updateHorror(time: number, delta: number) {
@@ -611,7 +770,7 @@ export class AshHollowScene extends Phaser.Scene {
     );
     this.statusText.setText(
       [
-        this.finalSequence ? 'RUN TO THE SERVICE TUNNEL' : 'PUBLIC DEMO v0.2',
+        this.finalSequence ? 'RUN TO THE SERVICE TUNNEL' : 'PUBLIC DEMO v0.3',
         GAME_CONFIG.debugShortcutsEnabled ? 'DEV SHORTCUTS: 1 2 3 K' : '',
         'M mute  ,/. volume'
       ]
@@ -723,6 +882,7 @@ export class AshHollowScene extends Phaser.Scene {
     this.shifted = true;
     this.events.emit(EVENTS.ROOM_SHIFTED);
     this.audio.playCue('shift');
+    this.audio.playAssetCue('shift');
     this.cameras.main.shake(550, 0.012);
     this.cameras.main.flash(500, 150, 40, 35, false);
     this.broadcast('The town inhales. Wallpaper darkens. Every hallway feels below ground.', 4600);
@@ -777,6 +937,7 @@ export class AshHollowScene extends Phaser.Scene {
       this.state = 'dead';
       this.events.emit(EVENTS.PLAYER_DIED);
       this.audio.playCue('death');
+      this.audio.playAssetCue('death');
       this.audio.setThreatLevel(0);
       this.player.setVelocity(0, 0);
       this.enemy.setVelocity(0, 0);
@@ -791,6 +952,7 @@ export class AshHollowScene extends Phaser.Scene {
     this.enemyTarget.set(this.player.x, this.player.y);
     this.unlockDoor('exit-door');
     this.audio.playCue('shift');
+    this.audio.playAssetCue('final');
     this.broadcast('Every speaker in the clinic whispers your name. Run.', 4200);
   }
 

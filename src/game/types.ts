@@ -1,7 +1,19 @@
-export type GameState = 'menu' | 'playing' | 'paused' | 'dead' | 'chapter_complete';
+export type GameState = 'menu' | 'playing' | 'paused' | 'credits' | 'dead' | 'chapter_complete';
 export type ItemKind = 'flashlight' | 'fuse' | 'clinic_key' | 'battery' | 'health_item';
 export type DoorKind = 'clinic' | 'basement' | 'exit';
 export type EnemyState = 'dormant' | 'patrol' | 'investigate' | 'chase' | 'search' | 'stunned';
+
+export interface AssetCredit {
+  id: string;
+  title: string;
+  creator: string;
+  sourceUrl: string;
+  license: string;
+  licenseUrl: string;
+  localPath: string;
+  modified: boolean;
+  usage: string;
+}
 
 export interface RoomData {
   id: string;

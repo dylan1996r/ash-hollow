@@ -18,8 +18,8 @@ AI systems used or planned:
 Other relevant notes:
 
 - The current source code and placeholder game content were generated through AI-assisted development prompts and tool use.
-- Visuals are procedural placeholder assets drawn in code; no third-party art pack is currently included.
-- Audio is not yet a polished asset pipeline; current horror feedback is primarily visual/UI-driven.
+- Visuals combine procedural effects with curated CC0 third-party assets listed in [CREDITS.md](./CREDITS.md).
+- Audio combines procedural threat tones with curated CC0 ambience assets listed in [CREDITS.md](./CREDITS.md).
 - Human input is currently focused on direction, taste, approval, and iteration requests.
 - Any future AI tools, generated assets, external models, or human-created assets should be listed here as the project evolves.
 
@@ -58,7 +58,11 @@ npm run deploy:pages
 
 ## Current Slice
 
-The first chapter prototype covers the Ash Hollow Clinic District: fog road, diner, motel office, clinic lobby, storage, fuse room, basement, and service tunnel. It includes flashlight battery pressure, inventory, notes, locked progression, a three-fuse objective chain, room shifting, radio static, procedural horror audio, ash/fog effects, and one stalking enemy.
+The first chapter prototype covers the Ash Hollow Clinic District: fog road, diner, motel office, clinic lobby, storage, fuse room, basement, and service tunnel. It includes flashlight battery pressure, inventory, notes, locked progression, a three-fuse objective chain, room shifting, radio static, hybrid procedural/asset audio, ash/fog effects, imported texture overlays, in-game credits, and one stalking enemy.
+
+## Asset Transparency
+
+The project uses free/open assets only when license information is visible and compatible with a public browser demo. Current integrated third-party assets are CC0; attribution is still provided voluntarily in [CREDITS.md](./CREDITS.md) and in the in-game credits screen. Future CC-BY assets are allowed only if creator, source, license, and modification notes are documented.
 
 ## v0.2 Features
 
@@ -68,9 +72,16 @@ The first chapter prototype covers the Ash Hollow Clinic District: fog road, din
 - Development-only shortcuts in local dev builds for faster testing.
 - GitHub Pages deployment workflow.
 
+## v0.3 Features
+
+- Curated CC0 asset pass for top-down floors/walls, grunge overlays, input prompt glyphs, ambience, and enemy silhouette frames.
+- Hybrid audio system with asset ambience/stingers layered under procedural threat tones.
+- In-game credits screen reachable from menu or pause with `C`.
+- Asset manifest for source URLs, creators, licenses, local paths, modifications, and usage notes.
+
 ## Known Limitations
 
 - The game currently targets desktop browsers.
-- Art is still procedural placeholder work, not final hand-authored production art.
-- Audio is procedural and atmospheric rather than a polished authored soundtrack.
+- Art is still a hybrid prototype style, not final hand-authored production art.
+- Audio now includes real ambience assets, but the soundtrack and mix are still prototype-level.
 - The current demo is one compact chapter, not a full game.
