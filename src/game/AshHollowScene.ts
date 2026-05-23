@@ -1,174 +1,9 @@
 import Phaser from 'phaser';
-
-type GameState = 'menu' | 'playing' | 'paused' | 'dead' | 'chapter_complete';
-type ItemKind = 'flashlight' | 'fuse' | 'clinic_key' | 'battery' | 'health_item';
-type DoorKind = 'clinic' | 'basement' | 'exit';
-type EnemyState = 'dormant' | 'patrol' | 'investigate' | 'chase' | 'search' | 'stunned';
-
-interface RoomData {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  color: number;
-  shiftedColor?: number;
-}
-
-interface WallData {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-interface PickupData {
-  id: string;
-  kind: ItemKind;
-  label: string;
-  x: number;
-  y: number;
-  requires?: ItemKind;
-  afterFuseCount?: number;
-}
-
-interface NoteData {
-  id: string;
-  title: string;
-  body: string;
-  x: number;
-  y: number;
-}
-
-interface DoorData {
-  id: string;
-  kind: DoorKind;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  label: string;
-}
-
-interface Interactable {
-  id: string;
-  label: string;
-  x: number;
-  y: number;
-  radius: number;
-  run: () => void;
-}
-
-const EVENTS = {
-  OBJECTIVE_STARTED: 'objective:started',
-  OBJECTIVE_COMPLETED: 'objective:completed',
-  FUSE_COLLECTED: 'fuse:collected',
-  ROOM_SHIFTED: 'room:shifted',
-  NOISE_EMITTED: 'noise:emitted',
-  ENEMY_ALERTED: 'enemy:alerted',
-  PLAYER_DIED: 'player:died',
-  CHAPTER_COMPLETED: 'chapter:completed'
-} as const;
-
-const ROOMS: RoomData[] = [
-  { id: 'road', name: 'Fog Road', x: 120, y: 660, width: 620, height: 260, color: 0x242720 },
-  { id: 'diner', name: 'Diner', x: 860, y: 590, width: 470, height: 300, color: 0x2b211c, shiftedColor: 0x371b18 },
-  { id: 'motel', name: 'Motel Office', x: 410, y: 180, width: 450, height: 270, color: 0x232927 },
-  { id: 'clinic', name: 'Clinic Lobby', x: 1070, y: 130, width: 590, height: 360, color: 0x202828, shiftedColor: 0x30201e },
-  { id: 'storage', name: 'Pharmacy Storage', x: 1700, y: 170, width: 340, height: 270, color: 0x1c2521, shiftedColor: 0x331d1d },
-  { id: 'fuse', name: 'Municipal Fuse Room', x: 1590, y: 620, width: 370, height: 250, color: 0x211f1b },
-  { id: 'basement', name: 'Clinic Basement', x: 980, y: 990, width: 760, height: 360, color: 0x171d1e, shiftedColor: 0x321c1b },
-  { id: 'tunnel', name: 'Service Tunnel', x: 1790, y: 1040, width: 410, height: 230, color: 0x151919 }
-];
-
-const WALLS: WallData[] = [
-  { x: -40, y: -40, width: 2480, height: 40 },
-  { x: -40, y: 1600, width: 2480, height: 40 },
-  { x: -40, y: -40, width: 40, height: 1680 },
-  { x: 2400, y: -40, width: 40, height: 1680 },
-  { x: 0, y: 0, width: 2400, height: 86 },
-  { x: 0, y: 1455, width: 2400, height: 145 },
-  { x: 0, y: 0, width: 80, height: 1600 },
-  { x: 2260, y: 0, width: 140, height: 1600 },
-  { x: 80, y: 500, width: 260, height: 92 },
-  { x: 765, y: 500, width: 260, height: 92 },
-  { x: 1340, y: 505, width: 155, height: 88 },
-  { x: 1885, y: 900, width: 95, height: 140 },
-  { x: 820, y: 900, width: 120, height: 110 },
-  { x: 360, y: 85, width: 40, height: 460 },
-  { x: 890, y: 85, width: 42, height: 390 },
-  { x: 1025, y: 85, width: 40, height: 450 },
-  { x: 1680, y: 85, width: 40, height: 452 },
-  { x: 2045, y: 85, width: 45, height: 470 },
-  { x: 930, y: 1360, width: 850, height: 45 },
-  { x: 1740, y: 930, width: 45, height: 475 },
-  { x: 2220, y: 930, width: 40, height: 475 }
-];
-
-const PICKUPS: PickupData[] = [
-  { id: 'flashlight', kind: 'flashlight', label: 'cracked flashlight', x: 320, y: 760 },
-  { id: 'battery-road', kind: 'battery', label: '9v battery', x: 520, y: 850 },
-  { id: 'fuse-diner', kind: 'fuse', label: 'warm fuse', x: 1180, y: 725 },
-  { id: 'clinic-key', kind: 'clinic_key', label: 'clinic key', x: 730, y: 295 },
-  { id: 'health-motel', kind: 'health_item', label: 'sealed gauze', x: 500, y: 355 },
-  { id: 'fuse-motel', kind: 'fuse', label: 'numbered fuse', x: 610, y: 235 },
-  { id: 'battery-clinic', kind: 'battery', label: 'drawer battery', x: 1210, y: 335, requires: 'clinic_key' },
-  { id: 'fuse-storage', kind: 'fuse', label: 'blackened fuse', x: 1885, y: 265, requires: 'clinic_key' },
-  { id: 'health-basement', kind: 'health_item', label: 'unmarked tonic', x: 1115, y: 1240, afterFuseCount: 2 }
-];
-
-const NOTES: NoteData[] = [
-  {
-    id: 'broadcast',
-    title: 'Emergency Broadcast',
-    body: 'The radio repeats one sentence through the ash: "Return to intake. We kept your room open."',
-    x: 260,
-    y: 690
-  },
-  {
-    id: 'ledger',
-    title: 'Motel Ledger',
-    body: 'Room 203 is listed seven times. The handwriting gets worse each time. The last line says: CLINIC KEY RETURNED.',
-    x: 735,
-    y: 230
-  },
-  {
-    id: 'jukebox',
-    title: 'Diner Jukebox Card',
-    body: 'Three songs are scratched out. A note below them reads: "When the lights blink twice, do not look at the kitchen."',
-    x: 1005,
-    y: 785
-  },
-  {
-    id: 'intake',
-    title: 'Patient Intake',
-    body: 'Your name appears on an intake sheet dated tomorrow. The attending physician field is empty except for a long black thumbprint.',
-    x: 1355,
-    y: 240
-  },
-  {
-    id: 'basement-note',
-    title: 'Basement Memo',
-    body: 'The service tunnel opens only after municipal power is restored. Someone wrote underneath: "It opens before it forgives."',
-    x: 1275,
-    y: 1170
-  }
-];
-
-const DOORS: DoorData[] = [
-  { id: 'clinic-door', kind: 'clinic', x: 1030, y: 350, width: 42, height: 105, label: 'Clinic door' },
-  { id: 'basement-door', kind: 'basement', x: 1500, y: 485, width: 120, height: 42, label: 'Basement stairs' },
-  { id: 'exit-door', kind: 'exit', x: 1760, y: 1130, width: 42, height: 130, label: 'Service tunnel gate' }
-];
-
-const PATROL_POINTS = [
-  new Phaser.Math.Vector2(1180, 1010),
-  new Phaser.Math.Vector2(1500, 1180),
-  new Phaser.Math.Vector2(1460, 740),
-  new Phaser.Math.Vector2(1260, 390),
-  new Phaser.Math.Vector2(940, 720)
-];
+import { GAME_CONFIG } from './config';
+import { DOORS, NOTES, PATROL_POINTS, PICKUPS, ROOMS, WALLS, WORLD_SIZE } from './data/levelData';
+import { EVENTS } from './events';
+import { ProceduralAudioController } from './systems/AudioController';
+import type { DoorData, EnemyState, GameState, Interactable, ItemKind, NoteData, PickupData } from './types';
 
 export class AshHollowScene extends Phaser.Scene {
   private state: GameState = 'menu';
@@ -184,19 +19,24 @@ export class AshHollowScene extends Phaser.Scene {
   private horrorLayer!: Phaser.GameObjects.Container;
   private fog!: Phaser.GameObjects.Graphics;
   private flashlight!: Phaser.GameObjects.Graphics;
+  private ash!: Phaser.GameObjects.Graphics;
   private uiText!: Phaser.GameObjects.Text;
   private centerText!: Phaser.GameObjects.Text;
   private promptText!: Phaser.GameObjects.Text;
   private messageText!: Phaser.GameObjects.Text;
   private staticText!: Phaser.GameObjects.Text;
+  private statusText!: Phaser.GameObjects.Text;
+  private muteKey!: Phaser.Input.Keyboard.Key;
+  private volumeDownKey!: Phaser.Input.Keyboard.Key;
+  private volumeUpKey!: Phaser.Input.Keyboard.Key;
   private interactionTarget?: Interactable;
   private interactables: Interactable[] = [];
   private inventory = new Set<ItemKind>();
   private collected = new Set<string>();
   private readNotes = new Set<string>();
   private fuseCount = 0;
-  private health = 3;
-  private battery = 100;
+  private health = GAME_CONFIG.startingHealth;
+  private battery = GAME_CONFIG.startingBattery;
   private objective = 'Find a light in the road fog.';
   private shifted = false;
   private finalSequence = false;
@@ -209,7 +49,10 @@ export class AshHollowScene extends Phaser.Scene {
   private nextFlickerAt = 0;
   private fogDrift = 0;
   private messageUntil = 0;
+  private lastStepAt = 0;
+  private lastThreatCueAt = 0;
   private noiseMarkers: Phaser.GameObjects.Arc[] = [];
+  private audio = new ProceduralAudioController(GAME_CONFIG.audioEnabled);
 
   constructor() {
     super('ash-hollow');
@@ -220,16 +63,24 @@ export class AshHollowScene extends Phaser.Scene {
   }
 
   create() {
-    this.physics.world.setBounds(0, 0, 2400, 1600);
-    this.cameras.main.setBounds(0, 0, 2400, 1600);
+    this.physics.world.setBounds(0, 0, WORLD_SIZE.width, WORLD_SIZE.height);
+    this.cameras.main.setBounds(0, 0, WORLD_SIZE.width, WORLD_SIZE.height);
     this.cameras.main.setBackgroundColor('#090b09');
     this.input.setDefaultCursor('crosshair');
 
     this.cursors = this.input.keyboard!.createCursorKeys();
-    this.keys = this.input.keyboard!.addKeys('W,A,S,D,E,F,SHIFT,SPACE,ESC,ENTER,R') as Record<
+    this.keys = this.input.keyboard!.addKeys('W,A,S,D,E,F,SHIFT,SPACE,ESC,ENTER,R,ONE,TWO,THREE,K') as Record<
       string,
       Phaser.Input.Keyboard.Key
     >;
+    this.muteKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.M);
+    this.volumeDownKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.COMMA);
+    this.volumeUpKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.PERIOD);
+    this.input.on('pointerdown', () => {
+      if (this.state === 'menu') {
+        this.startGame();
+      }
+    });
 
     this.createWorld();
     this.createActors();
@@ -247,7 +98,9 @@ export class AshHollowScene extends Phaser.Scene {
     }
     if (Phaser.Input.Keyboard.JustDown(this.keys.ESC) && this.state === 'playing') {
       this.state = 'paused';
-      this.centerText.setText('PAUSED\n\nPress Esc to return');
+      this.centerText.setText(
+        `PAUSED\n\nEsc resumes\nM toggles audio\n, and . adjust volume\n\nAudio: ${this.audio.isMuted() ? 'muted' : `${Math.round(this.audio.getVolume() * 100)}%`}`
+      );
       this.centerText.setVisible(true);
       return;
     }
@@ -255,10 +108,16 @@ export class AshHollowScene extends Phaser.Scene {
       this.state = 'playing';
       this.centerText.setVisible(false);
     }
+    if (this.state === 'paused') {
+      this.updateAudioControls();
+      return;
+    }
     if (this.state !== 'playing') {
       return;
     }
 
+    this.updateAudioControls();
+    this.updateDebugShortcuts();
     this.updatePlayer(delta);
     this.updateInteractions();
     this.updateEnemy(time, delta);
@@ -309,13 +168,14 @@ export class AshHollowScene extends Phaser.Scene {
   private createWorld() {
     this.mapLayer = this.add.container(0, 0);
     this.horrorLayer = this.add.container(0, 0);
-    this.add.rectangle(1200, 800, 2400, 1600, 0x0b0d0a).setDepth(-20);
+    this.add.rectangle(WORLD_SIZE.width / 2, WORLD_SIZE.height / 2, WORLD_SIZE.width, WORLD_SIZE.height, 0x0b0d0a).setDepth(-20);
 
     for (const room of ROOMS) {
       const shadow = this.add.rectangle(room.x + 18, room.y + 22, room.width, room.height, 0x060706, 0.72);
       const floor = this.add.rectangle(room.x, room.y, room.width, room.height, room.color, 1);
       floor.setData('roomId', room.id);
       floor.setStrokeStyle(3, 0x3e4037, 0.75);
+      this.addRoomDressing(room);
       const label = this.add.text(room.x - room.width / 2 + 18, room.y - room.height / 2 + 16, room.name.toUpperCase(), {
         fontSize: '13px',
         color: '#8e927f',
@@ -392,6 +252,17 @@ export class AshHollowScene extends Phaser.Scene {
     }
   }
 
+  private addRoomDressing(room: (typeof ROOMS)[number]) {
+    const graphics = this.add.graphics();
+    graphics.lineStyle(1, 0x4a4d42, 0.18);
+    for (let x = room.x - room.width / 2 + 34; x < room.x + room.width / 2; x += 68) {
+      graphics.lineBetween(x, room.y - room.height / 2 + 28, x + 24, room.y + room.height / 2 - 30);
+    }
+    graphics.fillStyle(0x0a0b09, 0.34);
+    graphics.fillRect(room.x - room.width / 2 + 18, room.y + room.height / 2 - 42, room.width - 36, 12);
+    this.mapLayer.add(graphics);
+  }
+
   private createActors() {
     this.player = this.physics.add.sprite(230, 820, 'player');
     this.player.setCollideWorldBounds(true);
@@ -409,6 +280,7 @@ export class AshHollowScene extends Phaser.Scene {
     this.physics.add.collider(this.enemy, this.doorWalls);
 
     this.flashlight = this.add.graphics().setDepth(40);
+    this.ash = this.add.graphics().setDepth(46);
     this.fog = this.add.graphics().setDepth(50);
   }
 
@@ -428,10 +300,18 @@ export class AshHollowScene extends Phaser.Scene {
     });
     this.staticText.setScrollFactor(0).setDepth(80);
 
+    this.statusText = this.add.text(1260, 16, '', {
+      fontSize: '13px',
+      color: '#a7aa98',
+      fontFamily: 'monospace',
+      align: 'right'
+    });
+    this.statusText.setOrigin(1, 0).setScrollFactor(0).setDepth(80);
+
     this.promptText = this.add.text(640, 650, '', {
       fontSize: '18px',
       color: '#efe6ca',
-      backgroundColor: '#10110dcc',
+      backgroundColor: '#10110dee',
       padding: { x: 14, y: 8 },
       fontFamily: 'monospace'
     });
@@ -464,17 +344,18 @@ export class AshHollowScene extends Phaser.Scene {
     this.events.on(EVENTS.FUSE_COLLECTED, () => {
       this.fuseCount += 1;
       this.emitNoise(this.player.x, this.player.y, 260);
+      this.audio.playCue('pickup');
       if (this.fuseCount === 1) {
-        this.objective = 'Find the motel ledger and clinic key. Two fuses remain.';
+        this.objective = 'Follow the road west to the motel. Read the ledger and take the clinic key.';
         this.broadcast('The radio coughs: "First circuit awake. The attendant has your chart."');
         this.wakeEnemy('patrol');
       }
       if (this.fuseCount === 2) {
-        this.objective = 'The town has shifted. Get the final fuse from clinic storage.';
+        this.objective = 'Enter the clinic. The final fuse is in pharmacy storage.';
         this.shiftRooms();
       }
       if (this.fuseCount === 3) {
-        this.objective = 'Restore municipal power in the fuse room.';
+        this.objective = 'All fuses found. Return to the municipal fuse room, then reach the basement.';
         this.broadcast('A PA speaker clicks on somewhere below you: "Basement intake is ready."');
       }
     });
@@ -483,7 +364,7 @@ export class AshHollowScene extends Phaser.Scene {
   private showMenu() {
     this.state = 'menu';
     this.centerText.setText(
-      'ASH HOLLOW\n\nA 2.5D psychological horror vertical slice\n\nWASD / Arrows move\nShift sprints and makes noise\nMouse aims flashlight\nE interacts\nF stuns nearby threat if flashlight is charged\n\nPress Enter'
+      'ASH HOLLOW v0.2\n\nA fully AI-created 2.5D psychological horror demo\n\nWASD / Arrows move\nShift sprints and makes noise\nMouse aims flashlight\nE interacts\nF stuns nearby threat if flashlight is charged\nM toggles audio\n, and . adjust volume\n\nPress Enter or click'
     );
     this.centerText.setVisible(true);
     this.uiText.setText('');
@@ -492,12 +373,61 @@ export class AshHollowScene extends Phaser.Scene {
   private startGame() {
     this.state = 'playing';
     this.centerText.setVisible(false);
+    this.audio.startAmbience();
     this.events.emit(EVENTS.OBJECTIVE_STARTED, 'chapter');
-    this.broadcast('Ash falls sideways. The road behind you is gone.');
+    this.broadcast('Ash falls sideways. Find the cracked flashlight, then search the diner and motel for fuses.');
   }
 
   private restartScene() {
+    this.audio.setThreatLevel(0);
     this.scene.restart();
+  }
+
+  private updateAudioControls() {
+    if (Phaser.Input.Keyboard.JustDown(this.muteKey)) {
+      this.audio.setMuted(!this.audio.isMuted());
+      this.broadcast(`Audio ${this.audio.isMuted() ? 'muted' : 'enabled'}.`, 1500);
+      if (this.state === 'paused') {
+        this.centerText.setText(
+          `PAUSED\n\nEsc resumes\nM toggles audio\n, and . adjust volume\n\nAudio: ${this.audio.isMuted() ? 'muted' : `${Math.round(this.audio.getVolume() * 100)}%`}`
+        );
+      }
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.volumeDownKey)) {
+      this.audio.setVolume(this.audio.getVolume() - 0.1);
+      this.audio.setMuted(false);
+      this.broadcast(`Audio volume ${Math.round(this.audio.getVolume() * 100)}%.`, 1500);
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.volumeUpKey)) {
+      this.audio.setVolume(this.audio.getVolume() + 0.1);
+      this.audio.setMuted(false);
+      this.broadcast(`Audio volume ${Math.round(this.audio.getVolume() * 100)}%.`, 1500);
+    }
+  }
+
+  private updateDebugShortcuts() {
+    if (!GAME_CONFIG.debugShortcutsEnabled) {
+      return;
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keys.ONE)) {
+      this.player.setPosition(720, 300);
+      this.broadcast('[dev] Jumped to motel.');
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keys.TWO)) {
+      this.player.setPosition(1230, 330);
+      this.inventory.add('clinic_key');
+      this.broadcast('[dev] Jumped to clinic with key.');
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keys.THREE)) {
+      this.fuseCount = 3;
+      this.inventory.add('flashlight');
+      this.inventory.add('clinic_key');
+      this.unlockDoor('clinic-door', false);
+      this.broadcast('[dev] Fuses completed.');
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keys.K)) {
+      this.damagePlayer();
+    }
   }
 
   private updatePlayer(delta: number) {
@@ -513,7 +443,13 @@ export class AshHollowScene extends Phaser.Scene {
     const sprinting = this.keys.SHIFT.isDown && axis.lengthSq() > 0;
     const speed = sprinting ? 205 : 132;
     body.setVelocity(axis.x * speed, axis.y * speed);
-    this.player.setRotation(Math.atan2(axis.y, axis.x));
+    if (axis.lengthSq() > 0) {
+      this.player.setRotation(Math.atan2(axis.y, axis.x));
+    }
+    if (axis.lengthSq() > 0 && this.time.now - this.lastStepAt > (sprinting ? 260 : 430)) {
+      this.lastStepAt = this.time.now;
+      this.audio.playCue('step');
+    }
     if (sprinting && Math.random() < 0.03) {
       this.emitNoise(this.player.x, this.player.y, 190);
     }
@@ -525,6 +461,7 @@ export class AshHollowScene extends Phaser.Scene {
       this.tryStunEnemy();
     }
     if (Phaser.Input.Keyboard.JustDown(this.keys.E) && this.interactionTarget) {
+      this.audio.playCue('note');
       this.interactionTarget.run();
     }
   }
@@ -572,7 +509,8 @@ export class AshHollowScene extends Phaser.Scene {
     }
 
     if (this.enemyState === 'patrol') {
-      this.enemyTarget.copy(PATROL_POINTS[this.patrolIndex]);
+      const patrolPoint = PATROL_POINTS[this.patrolIndex];
+      this.enemyTarget.set(patrolPoint.x, patrolPoint.y);
       if (Phaser.Math.Distance.BetweenPoints(this.enemy, this.enemyTarget) < 34) {
         this.patrolIndex = (this.patrolIndex + 1) % PATROL_POINTS.length;
       }
@@ -597,11 +535,11 @@ export class AshHollowScene extends Phaser.Scene {
 
     if (this.enemyState === 'chase') {
       this.enemyTarget.set(this.player.x, this.player.y);
-      if (distanceToPlayer > 520) {
+      if (distanceToPlayer > 560) {
         this.enemyState = 'search';
-        this.searchUntil = time + 2400;
+        this.searchUntil = time + 3000;
       }
-      if (distanceToPlayer < 35 && time - this.lastDamageAt > 1150) {
+      if (distanceToPlayer < 32 && time - this.lastDamageAt > 1550) {
         this.damagePlayer();
         this.lastDamageAt = time;
       }
@@ -609,10 +547,10 @@ export class AshHollowScene extends Phaser.Scene {
 
     const speedByState: Record<EnemyState, number> = {
       dormant: 0,
-      patrol: 82 + this.fuseCount * 9,
-      investigate: 118 + this.fuseCount * 10,
-      chase: 168 + this.fuseCount * 14,
-      search: 74,
+      patrol: 76 + this.fuseCount * 8,
+      investigate: 108 + this.fuseCount * 9,
+      chase: 150 + this.fuseCount * 13,
+      search: 68,
       stunned: 0
     };
     this.physics.moveToObject(this.enemy, this.enemyTarget, speedByState[this.enemyState], delta);
@@ -621,6 +559,7 @@ export class AshHollowScene extends Phaser.Scene {
   private updateHorror(time: number, delta: number) {
     this.fogDrift += delta * 0.00018;
     this.drawFlashlight();
+    this.drawAsh();
     this.drawFog();
 
     if (time > this.nextFlickerAt) {
@@ -634,6 +573,13 @@ export class AshHollowScene extends Phaser.Scene {
       const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.enemy.x, this.enemy.y);
       const intensity = Phaser.Math.Clamp(1 - distance / 720, 0, 1);
       this.staticText.setText(intensity > 0.08 ? `RADIO STATIC ${'#'.repeat(Math.ceil(intensity * 12))}` : '');
+      this.audio.setThreatLevel(intensity);
+      if (intensity > 0.55 && time - this.lastThreatCueAt > 1300) {
+        this.lastThreatCueAt = time;
+        this.audio.playCue('noise');
+      }
+    } else {
+      this.audio.setThreatLevel(0);
     }
 
     this.noiseMarkers = this.noiseMarkers.filter((marker) => {
@@ -658,9 +604,19 @@ export class AshHollowScene extends Phaser.Scene {
         `Battery: ${Math.round(this.battery)}%`,
         `Fuses: ${this.fuseCount}/3`,
         `Threat: ${stateLabel}`,
+        `Audio: ${this.audio.isMuted() ? 'muted' : `${Math.round(this.audio.getVolume() * 100)}%`}`,
         '',
         this.objective
       ].join('\n')
+    );
+    this.statusText.setText(
+      [
+        this.finalSequence ? 'RUN TO THE SERVICE TUNNEL' : 'PUBLIC DEMO v0.2',
+        GAME_CONFIG.debugShortcutsEnabled ? 'DEV SHORTCUTS: 1 2 3 K' : '',
+        'M mute  ,/. volume'
+      ]
+        .filter(Boolean)
+        .join('\n')
     );
 
     if (this.finalSequence && time % 900 < 30) {
@@ -670,16 +626,19 @@ export class AshHollowScene extends Phaser.Scene {
 
   private collectPickup(pickup: PickupData, sprite: Phaser.GameObjects.GameObject) {
     if (pickup.requires && !this.inventory.has(pickup.requires)) {
-      this.broadcast('The drawer is locked. Something in the motel office belongs here.');
+      this.audio.playCue('locked');
+      this.broadcast('Locked. Read the motel ledger, then take the clinic key from the office.');
       return;
     }
     if (pickup.afterFuseCount && this.fuseCount < pickup.afterFuseCount) {
+      this.audio.playCue('locked');
       this.broadcast('The air is too still. This has not happened yet.');
       return;
     }
 
     this.collected.add(pickup.id);
     sprite.destroy();
+    this.audio.playCue('pickup');
     if (pickup.kind === 'battery') {
       this.battery = Phaser.Math.Clamp(this.battery + 42, 0, 100);
     } else if (pickup.kind === 'health_item') {
@@ -689,7 +648,7 @@ export class AshHollowScene extends Phaser.Scene {
     } else {
       this.inventory.add(pickup.kind);
       if (pickup.kind === 'flashlight') {
-        this.objective = 'Search the diner and motel for municipal fuses.';
+        this.objective = 'Search the diner first. Then follow the road west to the motel office.';
       }
     }
     this.broadcast(`Picked up ${pickup.label}.`);
@@ -697,6 +656,7 @@ export class AshHollowScene extends Phaser.Scene {
 
   private readNote(note: NoteData) {
     this.readNotes.add(note.id);
+    this.audio.playCue('note');
     this.broadcast(`${note.title}\n${note.body}`, 5200);
     if (note.id === 'ledger' && !this.collected.has('clinic-key')) {
       this.objective = 'Take the clinic key from the motel office, then enter the clinic.';
@@ -705,14 +665,17 @@ export class AshHollowScene extends Phaser.Scene {
 
   private tryOpenDoor(door: DoorData) {
     if (door.kind === 'clinic' && !this.inventory.has('clinic_key')) {
-      this.broadcast('The clinic door is locked. The motel ledger mentions a returned key.');
+      this.audio.playCue('locked');
+      this.broadcast('The clinic door is locked. The motel ledger points to the returned key.');
       return;
     }
     if (door.kind === 'basement' && this.fuseCount < 3) {
-      this.broadcast('The basement stairwell has no power. Three municipal fuses are missing.');
+      this.audio.playCue('locked');
+      this.broadcast(`The basement stairwell has no power. ${3 - this.fuseCount} municipal fuse${3 - this.fuseCount === 1 ? '' : 's'} still missing.`);
       return;
     }
     if (door.kind === 'exit' && !this.finalSequence) {
+      this.audio.playCue('locked');
       this.broadcast('The service tunnel gate is dead. Restore power in the fuse room.');
       return;
     }
@@ -726,14 +689,17 @@ export class AshHollowScene extends Phaser.Scene {
     }
   }
 
-  private unlockDoor(doorId: string) {
+  private unlockDoor(doorId: string, announce = true) {
     this.collected.add(doorId);
     for (const child of this.doorWalls.getChildren()) {
       if (child.getData('doorId') === doorId) {
         child.destroy();
       }
     }
-    this.broadcast('The lock gives with a sound like teeth.');
+    this.audio.playCue('door');
+    if (announce) {
+      this.broadcast('The lock gives with a sound like teeth.');
+    }
   }
 
   private textureForPickup(kind: ItemKind) {
@@ -756,6 +722,7 @@ export class AshHollowScene extends Phaser.Scene {
     }
     this.shifted = true;
     this.events.emit(EVENTS.ROOM_SHIFTED);
+    this.audio.playCue('shift');
     this.cameras.main.shake(550, 0.012);
     this.cameras.main.flash(500, 150, 40, 35, false);
     this.broadcast('The town inhales. Wallpaper darkens. Every hallway feels below ground.', 4600);
@@ -773,6 +740,7 @@ export class AshHollowScene extends Phaser.Scene {
 
   private emitNoise(x: number, y: number, radius: number) {
     this.events.emit(EVENTS.NOISE_EMITTED, { x, y, radius });
+    this.audio.playCue('noise');
     const marker = this.add.circle(x, y, 8, 0xa74337, 0.22).setDepth(45);
     this.tweens.add({ targets: marker, radius, alpha: 0, duration: 650, ease: 'Sine.easeOut' });
     this.noiseMarkers.push(marker);
@@ -791,20 +759,25 @@ export class AshHollowScene extends Phaser.Scene {
       this.enemyState = 'stunned';
       this.stunnedUntil = this.time.now + 1450;
       this.battery = Phaser.Math.Clamp(this.battery - 18, 0, 100);
+      this.audio.playCue('stun');
       this.broadcast('The attendant folds away from the light.');
       return;
     }
     this.battery = Phaser.Math.Clamp(this.battery - 6, 0, 100);
+    this.audio.playCue('locked');
     this.broadcast('The beam catches only ash.');
   }
 
   private damagePlayer() {
     this.health -= 1;
+    this.audio.playCue('hurt');
     this.cameras.main.shake(240, 0.016);
     this.cameras.main.flash(180, 130, 20, 20, false);
     if (this.health <= 0) {
       this.state = 'dead';
       this.events.emit(EVENTS.PLAYER_DIED);
+      this.audio.playCue('death');
+      this.audio.setThreatLevel(0);
       this.player.setVelocity(0, 0);
       this.enemy.setVelocity(0, 0);
       this.centerText.setText('THE BROADCAST ENDS\n\nYou were found in the intake hall.\n\nPress R to restart');
@@ -817,12 +790,15 @@ export class AshHollowScene extends Phaser.Scene {
     this.enemyState = 'chase';
     this.enemyTarget.set(this.player.x, this.player.y);
     this.unlockDoor('exit-door');
+    this.audio.playCue('shift');
     this.broadcast('Every speaker in the clinic whispers your name. Run.', 4200);
   }
 
   private completeChapter() {
     this.state = 'chapter_complete';
     this.events.emit(EVENTS.CHAPTER_COMPLETED);
+    this.audio.playCue('complete');
+    this.audio.setThreatLevel(0);
     this.player.setVelocity(0, 0);
     this.enemy.setVelocity(0, 0);
     this.centerText.setText('CHAPTER COMPLETE\n\nThe service tunnel opens into deeper fog.\nThe radio says: "You came back early."\n\nPress R to play again');
@@ -848,8 +824,22 @@ export class AshHollowScene extends Phaser.Scene {
     const p1 = new Phaser.Math.Vector2(this.player.x, this.player.y);
     const p2 = new Phaser.Math.Vector2(this.player.x + Math.cos(angle - spread) * range, this.player.y + Math.sin(angle - spread) * range);
     const p3 = new Phaser.Math.Vector2(this.player.x + Math.cos(angle + spread) * range, this.player.y + Math.sin(angle + spread) * range);
-    this.flashlight.fillStyle(0xe8dfb8, 0.12).fillTriangle(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
-    this.flashlight.lineStyle(2, 0xe8dfb8, 0.18).strokeTriangle(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+    this.flashlight.fillStyle(0xf1e7bd, 0.18).fillTriangle(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+    this.flashlight.fillStyle(0xf8edc9, 0.08).fillCircle(this.player.x, this.player.y, 72);
+    this.flashlight.lineStyle(2, 0xf1e7bd, 0.26).strokeTriangle(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
+  }
+
+  private drawAsh() {
+    const camera = this.cameras.main;
+    const x = camera.scrollX;
+    const y = camera.scrollY;
+    this.ash.clear();
+    this.ash.fillStyle(this.shifted ? 0x9f766c : 0xd4d0bb, this.finalSequence ? 0.42 : 0.26);
+    for (let i = 0; i < 90; i += 1) {
+      const px = x + ((i * 73 + this.fogDrift * 32000) % (camera.width + 90)) - 45;
+      const py = y + ((i * 41 + this.fogDrift * 18000) % (camera.height + 70)) - 35;
+      this.ash.fillRect(px, py, 2 + (i % 3), 1 + (i % 2));
+    }
   }
 
   private drawFog() {
@@ -857,14 +847,14 @@ export class AshHollowScene extends Phaser.Scene {
     const x = camera.scrollX;
     const y = camera.scrollY;
     this.fog.clear();
-    this.fog.fillStyle(0x070807, 0.42).fillRect(x, y, camera.width, camera.height);
-    for (let i = 0; i < 26; i += 1) {
+    this.fog.fillStyle(0x070807, this.finalSequence ? 0.52 : 0.42).fillRect(x, y, camera.width, camera.height);
+    for (let i = 0; i < 34; i += 1) {
       const px = x + ((i * 157 + this.fogDrift * 9000) % (camera.width + 260)) - 130;
       const py = y + ((i * 89 + Math.sin(this.fogDrift * 8 + i) * 70) % (camera.height + 160)) - 80;
-      this.fog.fillStyle(i % 2 === 0 ? 0xb9bca8 : 0x7f8476, this.shifted ? 0.075 : 0.105);
+      this.fog.fillStyle(i % 2 === 0 ? 0xb9bca8 : 0x7f8476, this.shifted ? 0.095 : 0.115);
       this.fog.fillEllipse(px, py, 340 + (i % 5) * 55, 80 + (i % 3) * 28);
     }
-    const darkness = this.inventory.has('flashlight') ? 0.16 : 0.34;
+    const darkness = this.inventory.has('flashlight') ? 0.13 : 0.34;
     this.fog.fillStyle(0x000000, darkness).fillRect(x, y, camera.width, camera.height);
   }
 

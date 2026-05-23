@@ -1,11 +1,12 @@
 {
   "name": "ash-hollow",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc && vite build",
+    "deploy:pages": "GITHUB_PAGES=true npm run build",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
