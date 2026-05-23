@@ -56,6 +56,8 @@ export class AshHollowScene extends Phaser.Scene {
   private fogDrift = 0;
   private messageUntil = 0;
   private lastStepAt = 0;
+  private lastSprintNoiseAt = 0;
+  private lastNoiseCueAt = 0;
   private lastThreatCueAt = 0;
   private enemyFrameTick = 0;
   private enemyVisualKey = '';
@@ -65,6 +67,7 @@ export class AshHollowScene extends Phaser.Scene {
   private lastUiText = '';
   private lastStatusText = '';
   private lastPromptText = '';
+  private lastStaticText = '';
   private noiseMarkers: Phaser.GameObjects.Arc[] = [];
   private audio = new ProceduralAudioController(GAME_CONFIG.audioEnabled);
 
@@ -605,7 +608,8 @@ export class AshHollowScene extends Phaser.Scene {
       this.lastStepAt = this.time.now;
       this.audio.playCue('step');
     }
-    if (sprinting && Math.random() < 0.03) {
+    if (sprinting && this.time.now - this.lastSprintNoiseAt > 700 && Math.random() < 0.12) {
+      this.lastSprintNoiseAt = this.time.now;
       this.emitNoise(this.player.x, this.player.y, 190);
     }
 
@@ -770,7 +774,7 @@ export class AshHollowScene extends Phaser.Scene {
     if (this.enemyState !== 'dormant') {
       const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.enemy.x, this.enemy.y);
       const intensity = Phaser.Math.Clamp(1 - distance / 720, 0, 1);
-      this.staticText.setText(intensity > 0.08 ? `RADIO STATIC ${'#'.repeat(Math.ceil(intensity * 12))}` : '');
+      this.setStaticText(intensity > 0.08 ? `RADIO STATIC ${'#'.repeat(Math.ceil(intensity * 12))}` : '');
       this.audio.setThreatLevel(intensity);
       if (intensity > 0.55 && time - this.lastThreatCueAt > 1300) {
         this.lastThreatCueAt = time;
@@ -778,11 +782,17 @@ export class AshHollowScene extends Phaser.Scene {
       }
     } else {
       this.audio.setThreatLevel(0);
+      this.setStaticText('');
     }
 
     this.noiseMarkers = this.noiseMarkers.filter((marker) => {
-      marker.setAlpha(marker.alpha - 0.02);
-      if (marker.alpha <= 0) {
+      const age = (marker.getData('age') as number) + delta;
+      const targetRadius = marker.getData('targetRadius') as number;
+      const progress = Phaser.Math.Clamp(age / 520, 0, 1);
+      marker.setData('age', age);
+      marker.setRadius(8 + targetRadius * progress);
+      marker.setAlpha(0.24 * (1 - progress));
+      if (progress >= 1) {
         marker.destroy();
         return false;
       }
@@ -948,9 +958,17 @@ export class AshHollowScene extends Phaser.Scene {
 
   private emitNoise(x: number, y: number, radius: number) {
     this.events.emit(EVENTS.NOISE_EMITTED, { x, y, radius });
-    this.audio.playCue('noise');
-    const marker = this.add.circle(x, y, 8, 0xa74337, 0.22).setDepth(45);
-    this.tweens.add({ targets: marker, radius, alpha: 0, duration: 650, ease: 'Sine.easeOut' });
+    if (this.time.now - this.lastNoiseCueAt > 180) {
+      this.lastNoiseCueAt = this.time.now;
+      this.audio.playCue('noise');
+    }
+    while (this.noiseMarkers.length >= 5) {
+      this.noiseMarkers.shift()?.destroy();
+    }
+    const marker = this.add.circle(x, y, 8);
+    marker.setDepth(45).setAlpha(0.24).setStrokeStyle(2, 0xa74337, 0.42).setFillStyle(0xa74337, 0.04);
+    marker.setData('age', 0);
+    marker.setData('targetRadius', Math.min(radius, 90));
     this.noiseMarkers.push(marker);
     if (this.enemyState !== 'dormant') {
       const distance = Phaser.Math.Distance.Between(this.enemy.x, this.enemy.y, x, y);
@@ -1027,6 +1045,14 @@ export class AshHollowScene extends Phaser.Scene {
     }
     this.promptText.setText(text);
     this.lastPromptText = text;
+  }
+
+  private setStaticText(text: string) {
+    if (text === this.lastStaticText) {
+      return;
+    }
+    this.staticText.setText(text);
+    this.lastStaticText = text;
   }
 
   private drawFlashlight() {
