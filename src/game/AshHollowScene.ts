@@ -439,22 +439,26 @@ export class AshHollowScene extends Phaser.Scene {
   private registerEvents() {
     this.events.on(EVENTS.FUSE_COLLECTED, () => {
       this.fuseCount += 1;
-      this.emitNoise(this.player.x, this.player.y, 260);
       this.audio.playCue('pickup');
-      if (this.fuseCount === 1) {
-        this.objective = 'Follow the road west to the motel. Read the ledger and take the clinic key.';
-        this.broadcast('The radio coughs: "First circuit awake. The attendant has your chart."');
-        this.wakeEnemy('patrol');
-      }
-      if (this.fuseCount === 2) {
-        this.objective = 'Enter the clinic. The final fuse is in pharmacy storage.';
-        this.shiftRooms();
-      }
-      if (this.fuseCount === 3) {
-        this.objective = 'All fuses found. Return to the municipal fuse room, then reach the basement.';
-        this.broadcast('A PA speaker clicks on somewhere below you: "Basement intake is ready."');
-      }
+      this.time.delayedCall(0, () => this.handleFuseProgression());
     });
+  }
+
+  private handleFuseProgression() {
+    this.emitNoise(this.player.x, this.player.y, 260);
+    if (this.fuseCount === 1) {
+      this.objective = 'Follow the road west to the motel. Read the ledger and take the clinic key.';
+      this.broadcast('The radio coughs: "First circuit awake. The attendant has your chart."');
+      this.wakeEnemy('patrol');
+    }
+    if (this.fuseCount === 2) {
+      this.objective = 'Enter the clinic. The final fuse is in pharmacy storage.';
+      this.shiftRooms();
+    }
+    if (this.fuseCount === 3) {
+      this.objective = 'All fuses found. Return to the municipal fuse room, then reach the basement.';
+      this.broadcast('A PA speaker clicks on somewhere below you: "Basement intake is ready."');
+    }
   }
 
   private showMenu() {
@@ -707,7 +711,7 @@ export class AshHollowScene extends Phaser.Scene {
       search: 68,
       stunned: 0
     };
-    this.physics.moveToObject(this.enemy, this.enemyTarget, speedByState[this.enemyState], delta);
+    this.physics.moveToObject(this.enemy, this.enemyTarget, speedByState[this.enemyState]);
     this.updateEnemySprite(delta);
   }
 
@@ -926,7 +930,6 @@ export class AshHollowScene extends Phaser.Scene {
     this.shifted = true;
     this.events.emit(EVENTS.ROOM_SHIFTED);
     this.audio.playCue('shift');
-    this.audio.playAssetCue('shift');
     this.cameras.main.shake(550, 0.012);
     this.cameras.main.flash(500, 150, 40, 35, false);
     this.broadcast('The town inhales. Wallpaper darkens. Every hallway feels below ground.', 4600);
@@ -940,6 +943,7 @@ export class AshHollowScene extends Phaser.Scene {
       }
       this.horrorLayer.add([stain, lines]);
     }
+    this.time.delayedCall(80, () => this.audio.playAssetCue('shift'));
   }
 
   private emitNoise(x: number, y: number, radius: number) {
