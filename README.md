@@ -2,6 +2,8 @@
 
 Browser-playable 2.5D psychological horror vertical slice built with Vite, TypeScript, and Phaser 3.
 
+This is a fully AI-created game experiment: concept, design plan, code, placeholder art direction, and implementation were produced through an AI-assisted development session. The project explores how quickly a playable browser horror prototype can be designed and built from a prompt, with atmosphere-first mechanics, procedural placeholder visuals, and a compact vertical slice.
+
 ## Run
 
 ```bash
