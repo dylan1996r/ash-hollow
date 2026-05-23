@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.0 - Graphics and Enemy AI Polish
+
+- Added more CC0 indoor, interior, and sci-fi tilesheets for room-specific dressing and clinic/fuse-room detail.
+- Added prop dressing data for grungier 2.5D depth, shadows, foreground silhouettes, and shifted-state details without changing collision.
+- Extracted The Bent Attendant behavior into a focused enemy controller with data-driven sensing, movement, stun, search, and damage tuning.
+- Improved enemy fairness with clearer alert reasons, last-known-position search, clamped speeds, longer damage cooldown, and safer sound investigation.
+- Kept recent performance safeguards: capped noise markers, no per-frame texture churn, and no uncapped effect tweens.
+
 ## v0.3.0 - Asset Polish
 
 - Added a curated CC0 asset pipeline under `public/assets/vendor/`.

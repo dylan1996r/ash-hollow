@@ -1,10 +1,13 @@
 import Phaser from 'phaser';
 import { GAME_CONFIG } from './config';
 import { FLAT_ASSET_CREDITS, VENDOR_ASSET_KEYS, VENDOR_ASSET_PATHS } from './data/assetManifest';
+import { BENT_ATTENDANT_CONFIG } from './data/enemyConfig';
 import { DOORS, NOTES, PATROL_POINTS, PICKUPS, ROOMS, WALLS, WORLD_SIZE } from './data/levelData';
+import { ROOM_DRESSING } from './data/roomDressingData';
 import { EVENTS } from './events';
 import { ProceduralAudioController } from './systems/AudioController';
-import type { DoorData, EnemyState, GameState, Interactable, ItemKind, NoteData, PickupData } from './types';
+import { EnemyController } from './systems/EnemyController';
+import type { DoorData, EnemyAlertReason, EnemyState, GameState, Interactable, ItemKind, NoteData, PickupData, RoomDressingData } from './types';
 
 export class AshHollowScene extends Phaser.Scene {
   private state: GameState = 'menu';
@@ -12,6 +15,7 @@ export class AshHollowScene extends Phaser.Scene {
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
   private player!: Phaser.Physics.Arcade.Sprite;
   private enemy!: Phaser.Physics.Arcade.Sprite;
+  private enemyController!: EnemyController;
   private walls!: Phaser.Physics.Arcade.StaticGroup;
   private doorWalls!: Phaser.Physics.Arcade.StaticGroup;
   private pickups!: Phaser.GameObjects.Group;
@@ -47,11 +51,6 @@ export class AshHollowScene extends Phaser.Scene {
   private finalSequence = false;
   private previousState: GameState = 'menu';
   private enemyState: EnemyState = 'dormant';
-  private enemyTarget = new Phaser.Math.Vector2();
-  private patrolIndex = 0;
-  private searchUntil = 0;
-  private stunnedUntil = 0;
-  private lastDamageAt = 0;
   private nextFlickerAt = 0;
   private fogDrift = 0;
   private messageUntil = 0;
@@ -92,6 +91,19 @@ export class AshHollowScene extends Phaser.Scene {
     this.load.image(VENDOR_ASSET_KEYS.enemyMove1, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.enemyMove1]);
     this.load.image(VENDOR_ASSET_KEYS.enemyMove2, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.enemyMove2]);
     this.load.image(VENDOR_ASSET_KEYS.enemyMove3, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.enemyMove3]);
+    this.load.spritesheet(VENDOR_ASSET_KEYS.roguelikeIndoors, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.roguelikeIndoors], {
+      frameWidth: 16,
+      frameHeight: 16,
+      spacing: 1
+    });
+    this.load.spritesheet(VENDOR_ASSET_KEYS.interiorSpritesheet, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.interiorSpritesheet], {
+      frameWidth: 16,
+      frameHeight: 16
+    });
+    this.load.spritesheet(VENDOR_ASSET_KEYS.scifiInterior, VENDOR_ASSET_PATHS[VENDOR_ASSET_KEYS.scifiInterior], {
+      frameWidth: 32,
+      frameHeight: 32
+    });
     this.audio.preload(this);
     this.createGeneratedTextures();
   }
@@ -226,6 +238,7 @@ export class AshHollowScene extends Phaser.Scene {
       this.mapLayer.add([shadow, floor]);
       this.addVendorRoomDressing(room);
       this.addRoomDressing(room);
+      this.addRoomProps(room.id);
       this.mapLayer.add(label);
     }
 
@@ -338,6 +351,29 @@ export class AshHollowScene extends Phaser.Scene {
     this.mapLayer.add(grime);
   }
 
+  private addRoomProps(roomId: string) {
+    for (const prop of ROOM_DRESSING.filter((item) => item.roomId === roomId && !item.shiftedOnly)) {
+      this.addRoomProp(prop);
+    }
+  }
+
+  private addRoomProp(prop: RoomDressingData) {
+    if (prop.shadow) {
+      const shadow = this.add.ellipse(prop.x + 5, prop.y + 9, 30 * (prop.scale ?? 1), 12 * (prop.scale ?? 1), 0x050605, 0.34);
+      shadow.setDepth((prop.depth ?? 7) - 0.2);
+      this.mapLayer.add(shadow);
+    }
+    const sprite = this.add.sprite(prop.x, prop.y, prop.assetKey, prop.frame ?? 0);
+    sprite.setScale(prop.scale ?? 1);
+    sprite.setAlpha(prop.alpha ?? 1);
+    sprite.setDepth(prop.depth ?? 7);
+    sprite.setRotation(prop.rotation ?? 0);
+    if (prop.tint) {
+      sprite.setTint(prop.tint);
+    }
+    this.mapLayer.add(sprite);
+  }
+
   private createActors() {
     this.enemyVisualKey = '';
     this.enemyVisualTint = 0;
@@ -359,6 +395,7 @@ export class AshHollowScene extends Phaser.Scene {
     this.enemy.body!.setSize(20, 28).setOffset(8, 10);
     this.physics.add.collider(this.enemy, this.walls);
     this.physics.add.collider(this.enemy, this.doorWalls);
+    this.enemyController = new EnemyController(this.enemy, PATROL_POINTS, BENT_ATTENDANT_CONFIG, (reason) => this.onEnemyAlerted(reason));
 
     this.flashlight = this.add.graphics().setDepth(40);
     this.ash = this.add.graphics().setDepth(46);
@@ -467,7 +504,7 @@ export class AshHollowScene extends Phaser.Scene {
   private showMenu() {
     this.state = 'menu';
     this.centerText.setText(
-      'ASH HOLLOW v0.3\n\nA fully AI-created 2.5D psychological horror demo\n\nWASD / Arrows move\nShift sprints and makes noise\nMouse aims flashlight\nE interacts\nF stuns nearby threat if flashlight is charged\nM toggles audio\n, and . adjust volume\nC opens credits\n\nPress Enter or click'
+      'ASH HOLLOW v0.4\n\nA fully AI-created 2.5D psychological horror demo\n\nWASD / Arrows move\nShift sprints and makes noise\nMouse aims flashlight\nE interacts\nF stuns nearby threat if flashlight is charged\nM toggles audio\n, and . adjust volume\nC opens credits\n\nPress Enter or click'
     );
     this.centerText.setVisible(true);
     this.addMenuPromptIcons();
@@ -649,73 +686,19 @@ export class AshHollowScene extends Phaser.Scene {
   }
 
   private updateEnemy(time: number, delta: number) {
-    if (this.enemyState === 'dormant') {
-      return;
+    const result = this.enemyController.update({
+      time,
+      delta,
+      player: this.player,
+      fuseCount: this.fuseCount,
+      shifted: this.shifted,
+      flashlightActive: this.inventory.has('flashlight') && this.battery > 0,
+      isEnemyInFlashlight: () => this.isPointInFlashlight(this.enemy.x, this.enemy.y)
+    });
+    this.enemyState = result.state;
+    if (result.damagedPlayer) {
+      this.damagePlayer();
     }
-    const distanceToPlayer = Phaser.Math.Distance.Between(this.enemy.x, this.enemy.y, this.player.x, this.player.y);
-    const visibleRange = this.shifted ? 340 : 275;
-    const flashlightAlert = this.inventory.has('flashlight') && this.battery > 0 && distanceToPlayer < 380 && this.isPointInFlashlight(this.enemy.x, this.enemy.y);
-
-    if (this.enemyState !== 'stunned' && (distanceToPlayer < 145 || flashlightAlert)) {
-      this.enemyState = 'chase';
-      this.events.emit(EVENTS.ENEMY_ALERTED);
-    }
-    if (this.enemyState === 'stunned') {
-      if (time > this.stunnedUntil) {
-        this.enemyState = 'search';
-        this.searchUntil = time + 1600;
-      } else {
-        this.enemy.setVelocity(0, 0);
-        return;
-      }
-    }
-
-    if (this.enemyState === 'patrol') {
-      const patrolPoint = PATROL_POINTS[this.patrolIndex];
-      this.enemyTarget.set(patrolPoint.x, patrolPoint.y);
-      if (Phaser.Math.Distance.BetweenPoints(this.enemy, this.enemyTarget) < 34) {
-        this.patrolIndex = (this.patrolIndex + 1) % PATROL_POINTS.length;
-      }
-      if (distanceToPlayer < visibleRange) {
-        this.enemyState = 'investigate';
-        this.enemyTarget.set(this.player.x, this.player.y);
-      }
-    }
-
-    if (this.enemyState === 'investigate' && Phaser.Math.Distance.BetweenPoints(this.enemy, this.enemyTarget) < 28) {
-      this.enemyState = 'search';
-      this.searchUntil = time + 2200;
-    }
-
-    if (this.enemyState === 'search') {
-      if (time > this.searchUntil) {
-        this.enemyState = 'patrol';
-      } else if (Math.random() < 0.018) {
-        this.enemyTarget.set(this.enemy.x + Phaser.Math.Between(-180, 180), this.enemy.y + Phaser.Math.Between(-160, 160));
-      }
-    }
-
-    if (this.enemyState === 'chase') {
-      this.enemyTarget.set(this.player.x, this.player.y);
-      if (distanceToPlayer > 560) {
-        this.enemyState = 'search';
-        this.searchUntil = time + 3000;
-      }
-      if (distanceToPlayer < 32 && time - this.lastDamageAt > 1550) {
-        this.damagePlayer();
-        this.lastDamageAt = time;
-      }
-    }
-
-    const speedByState: Record<EnemyState, number> = {
-      dormant: 0,
-      patrol: 76 + this.fuseCount * 8,
-      investigate: 108 + this.fuseCount * 9,
-      chase: 150 + this.fuseCount * 13,
-      search: 68,
-      stunned: 0
-    };
-    this.physics.moveToObject(this.enemy, this.enemyTarget, speedByState[this.enemyState]);
     this.updateEnemySprite(delta);
   }
 
@@ -931,9 +914,18 @@ export class AshHollowScene extends Phaser.Scene {
   }
 
   private wakeEnemy(state: EnemyState) {
-    this.enemyState = state;
-    this.enemy.setVisible(true);
-    this.enemy.setPosition(1330, 1190);
+    this.enemyController.wake(state, new Phaser.Math.Vector2(this.player.x, this.player.y));
+    this.enemyState = this.enemyController.getState();
+  }
+
+  private onEnemyAlerted(reason: EnemyAlertReason) {
+    this.events.emit(EVENTS.ENEMY_ALERTED);
+    if (reason === 'noise') {
+      this.broadcast('Somewhere behind the walls, the attendant turns toward the sound.', 2200);
+    }
+    if (reason === 'flashlight') {
+      this.broadcast('The beam catches his face. He starts moving faster.', 2100);
+    }
   }
 
   private shiftRooms() {
@@ -956,7 +948,22 @@ export class AshHollowScene extends Phaser.Scene {
       }
       this.horrorLayer.add([stain, lines]);
     }
+    for (const prop of ROOM_DRESSING.filter((item) => item.shiftedOnly)) {
+      this.addShiftedRoomProp(prop);
+    }
     this.time.delayedCall(80, () => this.audio.playAssetCue('shift'));
+  }
+
+  private addShiftedRoomProp(prop: RoomDressingData) {
+    const sprite = this.add.sprite(prop.x, prop.y, prop.assetKey, prop.frame ?? 0);
+    sprite.setScale(prop.scale ?? 1);
+    sprite.setAlpha(prop.alpha ?? 1);
+    sprite.setDepth(prop.depth ?? 9);
+    sprite.setRotation(prop.rotation ?? 0);
+    if (prop.tint) {
+      sprite.setTint(prop.tint);
+    }
+    this.horrorLayer.add(sprite);
   }
 
   private emitNoise(x: number, y: number, radius: number) {
@@ -973,20 +980,15 @@ export class AshHollowScene extends Phaser.Scene {
     marker.setData('age', 0);
     marker.setData('targetRadius', Math.min(radius, 90));
     this.noiseMarkers.push(marker);
-    if (this.enemyState !== 'dormant') {
-      const distance = Phaser.Math.Distance.Between(this.enemy.x, this.enemy.y, x, y);
-      if (distance < radius + 350 && this.enemyState !== 'chase' && this.enemyState !== 'stunned') {
-        this.enemyState = 'investigate';
-        this.enemyTarget.set(x, y);
-      }
-    }
+    this.enemyController.hearNoise(x, y, radius);
+    this.enemyState = this.enemyController.getState();
   }
 
   private tryStunEnemy() {
     const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.enemy.x, this.enemy.y);
     if (this.enemyState !== 'dormant' && distance < 170 && this.isPointInFlashlight(this.enemy.x, this.enemy.y)) {
-      this.enemyState = 'stunned';
-      this.stunnedUntil = this.time.now + 1450;
+      this.enemyController.stun(this.time.now);
+      this.enemyState = this.enemyController.getState();
       this.battery = Phaser.Math.Clamp(this.battery - 18, 0, 100);
       this.audio.playCue('stun');
       this.broadcast('The attendant folds away from the light.');
@@ -1017,8 +1019,8 @@ export class AshHollowScene extends Phaser.Scene {
 
   private startFinalSequence() {
     this.finalSequence = true;
-    this.enemyState = 'chase';
-    this.enemyTarget.set(this.player.x, this.player.y);
+    this.enemyController.wake('chase', new Phaser.Math.Vector2(this.player.x, this.player.y));
+    this.enemyState = this.enemyController.getState();
     this.unlockDoor('exit-door');
     this.audio.playCue('shift');
     this.audio.playAssetCue('final');

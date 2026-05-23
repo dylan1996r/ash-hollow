@@ -13,6 +13,9 @@ export const VENDOR_ASSET_KEYS = {
   enemyMove1: 'vendor-enemy-move-1',
   enemyMove2: 'vendor-enemy-move-2',
   enemyMove3: 'vendor-enemy-move-3',
+  roguelikeIndoors: 'vendor-roguelike-indoors',
+  interiorSpritesheet: 'vendor-interior-spritesheet',
+  scifiInterior: 'vendor-scifi-interior',
   ambienceDungeon: 'vendor-ambience-dungeon',
   ambienceDark: 'vendor-ambience-dark',
   stingDark: 'vendor-sting-dark'
@@ -31,12 +34,15 @@ export const VENDOR_ASSET_PATHS = {
   [VENDOR_ASSET_KEYS.enemyMove1]: 'assets/vendor/lpc-animated-zombie/skeleton-move_4.png',
   [VENDOR_ASSET_KEYS.enemyMove2]: 'assets/vendor/lpc-animated-zombie/skeleton-move_8.png',
   [VENDOR_ASSET_KEYS.enemyMove3]: 'assets/vendor/lpc-animated-zombie/skeleton-move_12.png',
+  [VENDOR_ASSET_KEYS.roguelikeIndoors]: 'assets/vendor/kenney-roguelike-indoors/roguelikeIndoor_transparent.png',
+  [VENDOR_ASSET_KEYS.interiorSpritesheet]: 'assets/vendor/oga-interior-spritesheet/interior_0.png',
+  [VENDOR_ASSET_KEYS.scifiInterior]: 'assets/vendor/lpc-scifi-interior/scifitiles-sheet.png',
   [VENDOR_ASSET_KEYS.ambienceDungeon]: 'assets/vendor/lpc-dungeon-ambience/dungeon_ambient_1.ogg',
   [VENDOR_ASSET_KEYS.ambienceDark]: 'assets/vendor/oga-dark-ambiences/ambience-2.wav',
   [VENDOR_ASSET_KEYS.stingDark]: 'assets/vendor/oga-dark-ambiences/ambience-5.wav'
 } as const;
 
-export const ASSET_MANIFEST: Record<'tiles' | 'overlays' | 'sprites' | 'ui' | 'audio', AssetCredit[]> = {
+export const ASSET_MANIFEST: Record<'tiles' | 'overlays' | 'sprites' | 'props' | 'pickupIcons' | 'ui' | 'audio', AssetCredit[]> = {
   tiles: [
     {
       id: 'oga-top-down-dungeon',
@@ -76,6 +82,42 @@ export const ASSET_MANIFEST: Record<'tiles' | 'overlays' | 'sprites' | 'ui' | 'a
       usage: 'Selected frames are tinted and scaled as The Bent Attendant silhouette.'
     }
   ],
+  props: [
+    {
+      id: 'kenney-roguelike-indoors',
+      title: 'Roguelike Indoors',
+      creator: 'Kenney',
+      sourceUrl: 'https://kenney.nl/assets/roguelike-indoors',
+      license: 'CC0 1.0',
+      licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
+      localPath: 'public/assets/vendor/kenney-roguelike-indoors/roguelikeIndoor_transparent.png',
+      modified: true,
+      usage: 'Tinted and scaled as room furniture, containers, debris, and foreground props.'
+    },
+    {
+      id: 'oga-interior-spritesheet',
+      title: 'Interior spritesheet 16x16 tiles',
+      creator: 'InThePixel',
+      sourceUrl: 'https://opengameart.org/content/interior-spritesheet-16x16-tiles',
+      license: 'CC0 1.0',
+      licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
+      localPath: 'public/assets/vendor/oga-interior-spritesheet/interior_0.png',
+      modified: true,
+      usage: 'Tinted and scaled as small interior detail props.'
+    },
+    {
+      id: 'lpc-scifi-interior-tiles',
+      title: 'Sci-fi Interior tiles',
+      creator: 'Buch',
+      sourceUrl: 'https://lpc.opengameart.org/content/sci-fi-interior-tiles',
+      license: 'CC0 1.0',
+      licenseUrl: 'https://creativecommons.org/publicdomain/zero/1.0/',
+      localPath: 'public/assets/vendor/lpc-scifi-interior/scifitiles-sheet.png',
+      modified: true,
+      usage: 'Tinted and scaled as clinic panels, industrial trim, and fuse-room machinery.'
+    }
+  ],
+  pickupIcons: [],
   ui: [
     {
       id: 'kenney-input-prompts-pixel',

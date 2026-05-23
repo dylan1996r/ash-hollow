@@ -20,6 +20,9 @@ All third-party assets currently integrated are licensed under **Creative Common
 | Loopable Dungeon Ambience | JaggedStone | https://lpc.opengameart.org/content/loopable-dungeon-ambience | CC0 1.0 | Looping ambience layer after audio unlock. |
 | Input Prompts Pixel | Kenney | https://kenney.nl/assets/input-prompts-pixel | CC0 1.0 | Keyboard prompt glyph sheet used in menu, pause, and interaction prompts. |
 | Animated Top Down Zombie | Riley Gombart / ChessMasterRiley | https://lpc.opengameart.org/content/animated-top-down-zombie | CC0 1.0 | Selected frames are tinted/scaled as The Bent Attendant silhouette. |
+| Roguelike Indoors | Kenney | https://kenney.nl/assets/roguelike-indoors | CC0 1.0 | Indoor props and furniture used as room dressing. Tinted/scaled in-game. |
+| Interior spritesheet 16x16 tiles | InThePixel | https://opengameart.org/content/interior-spritesheet-16x16-tiles | CC0 1.0 | Small interior details used as signs, lamps, and warning marks. Tinted/scaled in-game. |
+| Sci-fi Interior tiles | Buch | https://lpc.opengameart.org/content/sci-fi-interior-tiles | CC0 1.0 | Clinic and fuse-room panels, machinery, bars, and industrial dressing. Tinted/scaled in-game. |
 
 ## License Policy
 

@@ -58,7 +58,7 @@ npm run deploy:pages
 
 ## Current Slice
 
-The first chapter prototype covers the Ash Hollow Clinic District: fog road, diner, motel office, clinic lobby, storage, fuse room, basement, and service tunnel. It includes flashlight battery pressure, inventory, notes, locked progression, a three-fuse objective chain, room shifting, radio static, hybrid procedural/asset audio, ash/fog effects, imported texture overlays, in-game credits, and one stalking enemy.
+The first chapter prototype covers the Ash Hollow Clinic District: fog road, diner, motel office, clinic lobby, storage, fuse room, basement, and service tunnel. It includes flashlight battery pressure, inventory, notes, locked progression, a three-fuse objective chain, room shifting, radio static, hybrid procedural/asset audio, ash/fog effects, imported texture overlays, room-specific prop dressing, in-game credits, and one stalking enemy.
 
 ## Asset Transparency
 
@@ -78,6 +78,13 @@ The project uses free/open assets only when license information is visible and c
 - Hybrid audio system with asset ambience/stingers layered under procedural threat tones.
 - In-game credits screen reachable from menu or pause with `C`.
 - Asset manifest for source URLs, creators, licenses, local paths, modifications, and usage notes.
+
+## v0.4 Features
+
+- Expanded CC0 asset pass with indoor props, interior detail tiles, and sci-fi/clinic panels.
+- Room-specific grungy 2.5D dressing with prop shadows, foreground silhouettes, and shifted-state details.
+- Extracted Bent Attendant AI controller with clearer sensing, sound investigation, last-known-position search, fairer damage cadence, and data-driven fuse escalation.
+- Preserved recent performance safeguards for noise effects, texture swaps, and capped animated objects.
 
 ## Known Limitations
 

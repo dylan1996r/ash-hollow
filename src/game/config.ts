@@ -10,7 +10,7 @@ export interface RuntimeConfig {
 export const GAME_CONFIG: RuntimeConfig = {
   isDev: import.meta.env.DEV,
   audioEnabled: true,
-  buildLabel: 'v0.3-noise-fix-2',
+  buildLabel: 'v0.4',
   startingHealth: 3,
   startingBattery: 100,
   debugShortcutsEnabled: import.meta.env.DEV
