@@ -105,6 +105,27 @@ export class ProceduralAudioController implements AudioController {
     if (this.assetAmbience?.isPlaying) {
       this.assetAmbience.stop();
     }
+    this.assetAmbience?.destroy();
+    this.assetAmbience = undefined;
+    try {
+      this.ambience?.stop();
+    } catch {
+      // The node may already be stopped during a scene restart.
+    }
+    try {
+      this.threat?.stop();
+    } catch {
+      // The node may already be stopped during a scene restart.
+    }
+    this.master?.disconnect();
+    this.ambience = undefined;
+    this.ambienceGain = undefined;
+    this.threat = undefined;
+    this.threatGain = undefined;
+    this.master = undefined;
+    void this.context?.close();
+    this.context = undefined;
+    this.started = false;
   }
 
   setThreatLevel(level: number) {
@@ -187,18 +208,18 @@ export class ProceduralAudioController implements AudioController {
     return this.volume;
   }
 
-	  private applyVolume() {
-	    if (this.master) {
-	      this.master.gain.value = this.muted ? 0 : this.volume * this.channelVolumes.master;
-	    }
+  private applyVolume() {
+    if (this.master) {
+      this.master.gain.value = this.muted ? 0 : this.volume * this.channelVolumes.master;
+    }
     if (this.ambienceGain) {
       this.ambienceGain.gain.value = 0.018 * this.channelVolumes.ambience;
     }
-	    if (this.assetAmbience) {
-	      const sound = this.assetAmbience as Phaser.Sound.WebAudioSound | Phaser.Sound.HTML5AudioSound;
-	      sound.setVolume(this.muted ? 0 : this.volume * this.channelVolumes.ambience * 0.45);
-	    }
-	  }
+    if (this.assetAmbience) {
+      const sound = this.assetAmbience as Phaser.Sound.WebAudioSound | Phaser.Sound.HTML5AudioSound;
+      sound.setVolume(this.muted ? 0 : this.volume * this.channelVolumes.ambience * 0.45);
+    }
+  }
 
   private startAssetAmbience(trackId: AudioTrackId) {
     if (!this.scene) {

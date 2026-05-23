@@ -58,6 +58,13 @@ export class AshHollowScene extends Phaser.Scene {
   private lastStepAt = 0;
   private lastThreatCueAt = 0;
   private enemyFrameTick = 0;
+  private enemyVisualKey = '';
+  private enemyVisualTint = 0;
+  private enemyVisualWidth = 0;
+  private enemyVisualHeight = 0;
+  private lastUiText = '';
+  private lastStatusText = '';
+  private lastPromptText = '';
   private noiseMarkers: Phaser.GameObjects.Arc[] = [];
   private audio = new ProceduralAudioController(GAME_CONFIG.audioEnabled);
 
@@ -329,6 +336,10 @@ export class AshHollowScene extends Phaser.Scene {
   }
 
   private createActors() {
+    this.enemyVisualKey = '';
+    this.enemyVisualTint = 0;
+    this.enemyVisualWidth = 0;
+    this.enemyVisualHeight = 0;
     this.player = this.physics.add.sprite(230, 820, 'player');
     this.player.setCollideWorldBounds(true);
     this.player.setDepth(20);
@@ -352,6 +363,9 @@ export class AshHollowScene extends Phaser.Scene {
   }
 
   private createHud() {
+    this.lastUiText = '';
+    this.lastStatusText = '';
+    this.lastPromptText = '';
     this.uiText = this.add.text(18, 16, '', {
       fontSize: '16px',
       color: '#d9d3c4',
@@ -620,7 +634,9 @@ export class AshHollowScene extends Phaser.Scene {
     this.promptText.setVisible(Boolean(closest));
     this.promptIcon.setVisible(Boolean(closest));
     if (closest) {
-      this.promptText.setText(`     ${closest.label}`);
+      this.setPromptText(`     ${closest.label}`);
+    } else {
+      this.lastPromptText = '';
     }
   }
 
@@ -698,8 +714,7 @@ export class AshHollowScene extends Phaser.Scene {
   private updateEnemySprite(delta: number) {
     this.enemyFrameTick += delta;
     if (this.enemyState === 'stunned') {
-      this.enemy.setTexture(VENDOR_ASSET_KEYS.enemyIdle).setTint(0xb99f82);
-      this.enemy.setDisplaySize(48, 50);
+      this.applyEnemyVisual(VENDOR_ASSET_KEYS.enemyIdle, 0xb99f82, 48, 50);
       return;
     }
     const movingFrames = [
@@ -711,8 +726,28 @@ export class AshHollowScene extends Phaser.Scene {
     const frame = this.enemyState === 'dormant' || this.enemyState === 'patrol'
       ? VENDOR_ASSET_KEYS.enemyIdle
       : movingFrames[Math.floor(this.enemyFrameTick / 180) % movingFrames.length];
-    this.enemy.setTexture(frame).setTint(this.enemyState === 'chase' ? 0x9d5c52 : 0x6f514d);
-    this.enemy.setDisplaySize(this.enemyState === 'chase' ? 52 : 46, this.enemyState === 'chase' ? 60 : 54);
+    this.applyEnemyVisual(
+      frame,
+      this.enemyState === 'chase' ? 0x9d5c52 : 0x6f514d,
+      this.enemyState === 'chase' ? 52 : 46,
+      this.enemyState === 'chase' ? 60 : 54
+    );
+  }
+
+  private applyEnemyVisual(textureKey: string, tint: number, width: number, height: number) {
+    if (this.enemyVisualKey !== textureKey) {
+      this.enemy.setTexture(textureKey);
+      this.enemyVisualKey = textureKey;
+    }
+    if (this.enemyVisualTint !== tint) {
+      this.enemy.setTint(tint);
+      this.enemyVisualTint = tint;
+    }
+    if (this.enemyVisualWidth !== width || this.enemyVisualHeight !== height) {
+      this.enemy.setDisplaySize(width, height);
+      this.enemyVisualWidth = width;
+      this.enemyVisualHeight = height;
+    }
   }
 
   private updateHorror(time: number, delta: number) {
@@ -757,26 +792,31 @@ export class AshHollowScene extends Phaser.Scene {
 
   private updateHud(time: number) {
     const stateLabel = this.enemyState === 'dormant' ? 'quiet' : this.enemyState;
-    this.uiText.setText(
-      [
-        `Health: ${'|'.repeat(this.health)}${'.'.repeat(3 - this.health)}`,
-        `Battery: ${Math.round(this.battery)}%`,
-        `Fuses: ${this.fuseCount}/3`,
-        `Threat: ${stateLabel}`,
-        `Audio: ${this.audio.isMuted() ? 'muted' : `${Math.round(this.audio.getVolume() * 100)}%`}`,
-        '',
-        this.objective
-      ].join('\n')
-    );
-    this.statusText.setText(
-      [
-        this.finalSequence ? 'RUN TO THE SERVICE TUNNEL' : 'PUBLIC DEMO v0.3',
-        GAME_CONFIG.debugShortcutsEnabled ? 'DEV SHORTCUTS: 1 2 3 K' : '',
-        'M mute  ,/. volume'
-      ]
-        .filter(Boolean)
-        .join('\n')
-    );
+    const uiText = [
+      `Health: ${'|'.repeat(this.health)}${'.'.repeat(3 - this.health)}`,
+      `Battery: ${Math.round(this.battery)}%`,
+      `Fuses: ${this.fuseCount}/3`,
+      `Threat: ${stateLabel}`,
+      `Audio: ${this.audio.isMuted() ? 'muted' : `${Math.round(this.audio.getVolume() * 100)}%`}`,
+      '',
+      this.objective
+    ].join('\n');
+    if (uiText !== this.lastUiText) {
+      this.uiText.setText(uiText);
+      this.lastUiText = uiText;
+    }
+
+    const statusText = [
+      this.finalSequence ? 'RUN TO THE SERVICE TUNNEL' : 'PUBLIC DEMO v0.3',
+      GAME_CONFIG.debugShortcutsEnabled ? 'DEV SHORTCUTS: 1 2 3 K' : '',
+      'M mute  ,/. volume'
+    ]
+      .filter(Boolean)
+      .join('\n');
+    if (statusText !== this.lastStatusText) {
+      this.statusText.setText(statusText);
+      this.lastStatusText = statusText;
+    }
 
     if (this.finalSequence && time % 900 < 30) {
       this.emitNoise(this.player.x + Phaser.Math.Between(-80, 80), this.player.y + Phaser.Math.Between(-80, 80), 220);
@@ -797,6 +837,10 @@ export class AshHollowScene extends Phaser.Scene {
 
     this.collected.add(pickup.id);
     sprite.destroy();
+    this.interactionTarget = undefined;
+    this.promptText.setVisible(false);
+    this.promptIcon.setVisible(false);
+    this.lastPromptText = '';
     this.audio.playCue('pickup');
     if (pickup.kind === 'battery') {
       this.battery = Phaser.Math.Clamp(this.battery + 42, 0, 100);
@@ -971,6 +1015,14 @@ export class AshHollowScene extends Phaser.Scene {
     this.messageText.setText(text);
     this.messageText.setVisible(true);
     this.messageUntil = this.time.now + duration;
+  }
+
+  private setPromptText(text: string) {
+    if (text === this.lastPromptText) {
+      return;
+    }
+    this.promptText.setText(text);
+    this.lastPromptText = text;
   }
 
   private drawFlashlight() {
